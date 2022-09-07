@@ -17,7 +17,11 @@ public class ClaimHeaderAppender : RequestTransform
         if (user.Identity?.IsAuthenticated ?? false)
         {
             AddClaim(context, ClaimTypes.Name, DefaultHeaders.Name);
-            AddClaim(context, ClaimTypes.NameIdentifier, DefaultHeaders.Email);
+            AddClaim(context, ClaimTypes.Email, DefaultHeaders.Email);
+            AddClaim(context, ClaimTypes.GivenName, DefaultHeaders.GivenName);
+            AddClaim(context, "given_name", DefaultHeaders.GivenName);
+            AddClaim(context, ClaimTypes.Surname, DefaultHeaders.Surname);
+            AddClaim(context, "family_name", DefaultHeaders.Surname);
             var accessToken = await context.HttpContext.GetTokenAsync("access_token");
             if (!string.IsNullOrEmpty(accessToken))
             {

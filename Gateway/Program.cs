@@ -1,50 +1,57 @@
 using Gateway;
-using IdentityModel.Client;
+using Gateway.Interfaces.Services;
+using Gateway.Services;
+using Gateway.Settings;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authentication.OAuth.Claims;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using NMica.SecurityProxy.Middleware.Transforms;
-using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var authority = builder.Configuration["Authority"];
-var requireHttpsAuthority = authority.StartsWith("https");
+var identityServerSettings = new IdentityServerSettings();
+builder.Configuration.GetSection("IdentityServer").Bind(identityServerSettings);
+builder.Services.AddSingleton(Options.Create(identityServerSettings));
 
 builder.Services.AddControllers();
 builder.Services.AddHttpClient("RefreshToken");
 builder.Services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
 builder.Services.AddSingleton<IAuthenticationSchemeProvider, CustomAuthenticationSchemeProvider>();
-builder.Services.AddTransient<IClaimsTransformation, CustomClaimsTransformation>();
+
+if(identityServerSettings.IdentityProvider.Equals("Okta", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddHttpClient<IRefreshTokenService, OktaRefreshTokenService>();
+}
+else
+{
+    builder.Services.AddHttpClient<IRefreshTokenService, IdentityServerRefreshTokenService>();
+}
+
 builder.Services.AddAuthentication()
-    .AddOpenIdConnect(config =>
+    .AddOpenIdConnect(options =>
     {
-        config.RequireHttpsMetadata = requireHttpsAuthority;
-        config.SignInScheme  = CookieAuthenticationDefaults.AuthenticationScheme;
-        config.Authority = authority;
-        config.ClientId = "gui";
-        config.ClientSecret = "password";
-        config.ResponseType = "code";
-        config.Scope.Add("openid");
-        config.Scope.Add("profile");
-        config.Scope.Add("offline_access");
-        config.ClaimActions.Add(new DeleteClaimAction("s_hash"));
-        config.ClaimActions.Add(new DeleteClaimAction("sid"));
-        config.ClaimActions.Add(new DeleteClaimAction("auth_time"));
-        config.ClaimActions.Add(new DeleteClaimAction("amr"));
+        options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+        options.Authority = identityServerSettings.Authority;
+        options.ClientId = identityServerSettings.ClientId;
+        options.ClientSecret = identityServerSettings.ClientSecret;
+        options.ResponseType = "code";
+        options.Scope.Add("openid");
+        options.Scope.Add("profile");
+        options.Scope.Add("email");
+        options.Scope.Add("offline_access");
 
         // This aligns the life of the cookie with the life of the token.
         // Note this is not the actual expiration of the cookie as seen by the browser.
         // It is an internal value stored in "expires_at".
-        config.UseTokenLifetime = false;
+        options.UseTokenLifetime = false;
 
         // used to store access_token and refresh_token in cookie
         // needed so that other instances can refresh
-        config.SaveTokens = true;
+        options.SaveTokens = true;
 
-        config.GetClaimsFromUserInfoEndpoint = true;
+        options.GetClaimsFromUserInfoEndpoint = true;
     })
     .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
     {
@@ -70,15 +77,8 @@ builder.Services.AddAuthentication()
                 if (timeRemaining < refreshThreshold)
                 {
                     var refreshToken = cookieCtx.Properties.GetTokenValue("refresh_token");
-                    var clientFactory = cookieCtx.HttpContext.RequestServices.GetRequiredService<IHttpClientFactory>();
-                    var client = clientFactory.CreateClient("RefreshToken");
-                    var response = await client.RequestRefreshTokenAsync(new RefreshTokenRequest
-                    {
-                        Address = $"{authority}/connect/token",
-                        ClientId = "gui",
-                        ClientSecret = "password",
-                        RefreshToken = refreshToken
-                    });
+                    var refreshTokenService = cookieCtx.HttpContext.RequestServices.GetRequiredService<IRefreshTokenService>();
+                    var response = await refreshTokenService.RefreshAsync(refreshToken);
 
                     if (!response.IsError)
                     {
@@ -101,15 +101,13 @@ builder.Services.AddAuthentication()
     })
     .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
     {
-        options.Authority = authority;
-        options.Audience = authority;
-        options.RequireHttpsMetadata = requireHttpsAuthority;
+        options.Authority = identityServerSettings.Authority;
+        options.Audience = identityServerSettings.Authority;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
             ValidateAudience = false,
-            ValidateIssuerSigningKey = true,
-            NameClaimType = ClaimTypes.Name
+            ValidateIssuerSigningKey = true
         };
     });
 builder.Services.AddAuthorization(c => c

@@ -23,7 +23,7 @@ builder.Services.AddAuthorization(options =>
                                 .Build();
     options.AddPolicy(AuthorizationPolicies.Admin, new AuthorizationPolicyBuilder()
                                 .RequireAuthenticatedUser()
-                                .AddRequirements(new AdminRequirement("admin"))
+                                .AddRequirements(new AdminRequirement("admin@dev-28752567-admin.okta.com"))
                                 .Build());
 });
 

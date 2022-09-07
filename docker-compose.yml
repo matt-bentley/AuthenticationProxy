@@ -7,22 +7,12 @@ services:
       dockerfile: Gateway/Dockerfile
     image: ${DOCKER_REGISTRY}yarp/security/gateway:${TAG:-dev}
     environment:
-      - "ASPNETCORE_URLS=https://+;http://+"
-      - ASPNETCORE_HTTPS_PORT=7001
-      - "Authority=https://idsrv"
+      - "ASPNETCORE_URLS=https://+:9090"
+      - ASPNETCORE_HTTPS_PORT=9090
+      - "ReverseProxy__Clusters__weatherservice__Destinations__weatherservice-1__Address=http://api:8080/"
+      - "ReverseProxy__Clusters__weatherapp__Destinations__weatherapp-1__Address=http://web:8080/"
     ports:
-      - 7001:443
-
-  idsrv:
-    build:
-      context: .
-      dockerfile: DevIdentityServer/Dockerfile
-    image: ${DOCKER_REGISTRY}yarp/security/idsrv:${TAG:-dev}
-    environment:
-      - "ASPNETCORE_URLS=https://+;http://+"
-      - ASPNETCORE_HTTPS_PORT=5001
-    ports:
-      - 5001:443
+      - 9090:9090
 
   api:
     build:

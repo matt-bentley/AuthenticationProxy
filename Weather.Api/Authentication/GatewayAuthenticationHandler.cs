@@ -32,12 +32,14 @@ namespace Weather.Api.Authentication
 
             var claims = new[]
             {
-                new Claim(ClaimTypes.NameIdentifier, Request.Headers[DefaultHeaders.Name]),
+                new Claim(ClaimTypes.NameIdentifier, email.ToString()),
                 new Claim(ClaimTypes.Email, email.ToString()),
-                new Claim(ClaimTypes.Name, Request.Headers[DefaultHeaders.Name])
+                new Claim(ClaimTypes.Name, Request.Headers[DefaultHeaders.Name]),
+                new Claim(ClaimTypes.GivenName, Request.Headers[DefaultHeaders.GivenName]),
+                new Claim(ClaimTypes.Surname, Request.Headers[DefaultHeaders.Surname])
             };
 
-            var claimsIdentity = new ClaimsIdentity(claims, nameof(GatewayAuthenticationHandler));
+            var claimsIdentity = new ClaimsIdentity(claims, nameof(GatewayAuthenticationHandler), ClaimTypes.Email, ClaimTypes.Role);
             var ticket = new AuthenticationTicket(new ClaimsPrincipal(claimsIdentity), Scheme.Name);
 
             return Task.FromResult(AuthenticateResult.Success(ticket));
