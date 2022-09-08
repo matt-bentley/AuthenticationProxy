@@ -2,7 +2,9 @@
 
 This project uses YARP (Yet Another Reverse Proxy) to offload authentication at a gateway proxy so that downstream applications don't need to have any authentication code/logic.
 
-Claims are passed down to the downstream services as headers.
+This solution can be used as an API gateway or as a sidecar proxy for Kubernetes pods.
+
+The user's identity claims are passed down to the downstream services as headers.
 
 ## Authentication
 
@@ -30,10 +32,10 @@ Headers were chosen as the mechanism to pass through the identity information so
 
 The claims are serialized into an identity using the ***GatewayAuthenticationHandler***.
 
-The access_token is passed in via the **Authorization** header to downstream requests so that the downstream applications be use it to make additional requests for the user. The access_token is passed downstream regardless of whether Cookies or JWTs are used to authenticate the user.
+The access_token is passed in via the **Authorization** header to downstream requests so that the downstream applications can use it to make additional requests for the user. The access_token is passed downstream regardless of whether Cookies or JWTs are used to authenticate the user.
 
 Header Name | Description | Example |
---- | --- |
+--- | --- |--- |
 x-forwarded-name | Username | Test User |
 x-forwarded-email | Email | user@dev-28752567-admin.okta.com |
 x-forwarded-givenname | First name | Test |
