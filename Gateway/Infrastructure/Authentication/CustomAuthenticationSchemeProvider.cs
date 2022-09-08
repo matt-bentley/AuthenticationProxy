@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 
-namespace Gateway
+namespace Gateway.Authentication
 {
     public class CustomAuthenticationSchemeProvider : AuthenticationSchemeProvider
     {

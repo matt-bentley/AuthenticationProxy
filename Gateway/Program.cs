@@ -5,9 +5,16 @@ using Gateway.Settings;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using NMica.SecurityProxy.Middleware.Transforms;
+using System.Net;
+using Gateway.Authentication;
+using Gateway.Infrastructure.Authorization.Requirements;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using HealthChecks.UI.Client;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,7 +27,11 @@ builder.Services.AddHttpClient("RefreshToken");
 builder.Services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
 builder.Services.AddSingleton<IAuthenticationSchemeProvider, CustomAuthenticationSchemeProvider>();
 
-if(identityServerSettings.IdentityProvider.Equals("Okta", StringComparison.OrdinalIgnoreCase))
+builder.Services.AddDataProtection()
+    .DisableAutomaticKeyGeneration()
+    .PersistKeysToFileSystem(new DirectoryInfo(Path.Join(Directory.GetCurrentDirectory(), "DataProtection")));
+
+if (identityServerSettings.IdentityProvider.Equals("Okta", StringComparison.OrdinalIgnoreCase))
 {
     builder.Services.AddHttpClient<IRefreshTokenService, OktaRefreshTokenService>();
 }
@@ -102,16 +113,29 @@ builder.Services.AddAuthentication()
     .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
     {
         options.Authority = identityServerSettings.Authority;
-        options.Audience = identityServerSettings.Authority;
+        options.Audience = identityServerSettings.Audience;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
-            ValidateAudience = false,
+            ValidateAudience = true,
             ValidateIssuerSigningKey = true
         };
     });
-builder.Services.AddAuthorization(c => c
-    .AddPolicy("authenticated", p => p.RequireAuthenticatedUser()));
+
+builder.Services.AddTransient<IAuthorizationHandler, AdminRequirementHandler>();
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                                .RequireAuthenticatedUser()
+                                .Build();
+
+    options.AddPolicy("admin", p =>
+    {
+        p.RequireAuthenticatedUser();
+        p.AddRequirements(new AdminRequirement(builder.Configuration.GetSection("Administrators").Get<string[]>()));
+    });
+});
+
 builder.Services.AddSingleton<ClaimHeaderAppender>();
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
@@ -120,7 +144,22 @@ builder.Services.AddReverseProxy()
         context.RequestTransforms.Add(context.Services.GetRequiredService<ClaimHeaderAppender>());
     });
 
+builder.Services.AddHealthChecks()
+                .AddLiveness("gateway");
+
+// this is needed to forward the host headers when reverse proxied through load balancers
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Add(new IPNetwork(IPAddress.Parse("::ffff:10.0.0.0"), 104));
+    options.KnownNetworks.Add(new IPNetwork(IPAddress.Parse("::ffff:192.168.0.0"), 112));
+    options.KnownNetworks.Add(new IPNetwork(IPAddress.Parse("::ffff:172.16.0.0"), 108));
+});
+
 var app = builder.Build();
+
+// Required to forward headers from load balancers and reverse proxies
+app.UseForwardedHeaders();
 
 app.UseCors(p => p
     .AllowAnyHeader()
@@ -132,5 +171,16 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+app.MapHealthChecks("/gateway/liveness", new HealthCheckOptions
+{
+    Predicate = r => r.Name.Contains("self")
+}).AllowAnonymous();
+app.MapHealthChecks("/gateway/healthz", new HealthCheckOptions()
+{
+    Predicate = _ => true,
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+}).AllowAnonymous();
+
 app.MapReverseProxy();
 app.Run();

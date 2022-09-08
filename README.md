@@ -18,6 +18,8 @@ Cookies are used to authenticate requests through the gateway by default rather 
 
 The *access_token* and *refresh_token* is stored in the session cookie so that any Gateway instance can extract and refresh the access_token. This allows the gateway to be load balanced or used as a sidecar container to multiple applications.
 
+The Data Protection key is stored inside the Gateway container so that the same key is used for creating cookies for all instances. In a production system the data protection keys should be rotated and stored securely using a system such as Azure Key Vault.
+
 ### JWT Bearer
 
 Any requests that container an `Authorization` header with a **Bearer** token will be authenticated using the JWT token rather than a cookie. This is useful for server-to-server requests.
@@ -40,28 +42,7 @@ Authorization | JWT Bearer token | Bearer {access_token} |
 
 ## Build & Run
 
-The solution can be run via Visual Studio or in Docker containers using docker-compose.
-
-### Trust Dev Certificate
-
-A self-signed certificate has been generated using dotnet dev-certs. This must be trusted so that there are no SSL errors when running the solution. Follow these steps if using Windows:
-- Double click on `aspnetapp.crt`
-- Click 'Install Certificate'
-- Select Store Location 'Current User'
-- Select 'Place all certificates in the following store' then 'Browse'
-- Select 'Trusted Root Certification Authorities'
-- Accept the security warning to install
-
-In production certificates should be loaded in a more secure way or offloaded to another reverse proxy/load balancer.
-
-A new development certificate can be created using the following:
-```cmd
-dotnet dev-certs https --clean
-dotnet dev-certs https -ep %USERPROFILE%\.aspnet\https\aspnetapp.pfx -p password
-dotnet dev-certs https --trust
-```
-
-The new certificate must be added to the `Gateway` project.
+The solution can be run via Visual Studio or in Kubernetes.
 
 ### Run in Visual Studio
 
@@ -71,19 +52,52 @@ To run in Visual Studio the following projects must be set as startup projects:
 - Weather.Api
 - Weather.Web.Server
 
-### Run in Docker
+This will run a single Gateway instance which can route to either the API or Web application used path based routing.
+
+### Run in Kubernetes
+
+In Kubernetes the Gateway runs as a sidecar container on each of the API and Web pods. An Nginx ingress controller is used as the frontend reverse proxy to offload SSL and route traffic to the API and Web pods.
+
+#### Build Containers
 
 The Docker containers can be built using the following:
 ```bash
 docker-compose build
 ```
 
-Run Docker containers:
+#### Trust Dev Certificate
+
+A self-signed certificate has been generated using dotnet dev-certs. This must be trusted to stop SSL errors appearing in the browser when accessing. Follow these steps if using Windows:
+- Double click on `aspnetapp.crt`
+- Click 'Install Certificate'
+- Select Store Location 'Current User'
+- Select 'Place all certificates in the following store' then 'Browse'
+- Select 'Trusted Root Certification Authorities'
+- Accept the security warning to install
+
+#### Deploy to Kubernetes
+
+The following can be used to install the Kubernetes components after the containers have been built:
+
 ```bash
-docker-compose up
+# install nginx ingress
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update
+helm install nginx ingress-nginx --repo https://kubernetes.github.io/ingress-nginx
+
+# deploy ingress SSL certificate and ingress routes
+kubectl apply -f k8s\ingress\ingress.yml
+
+# deploy api pod
+kubectl apply -f k8s\api\api.yml
+
+# deploy web pod
+kubectl apply -f k8s\web\web.yml
 ```
 
 ### Application Endpoints
+
+When debugging via Visual Studio the url will be '**https://localhost:9090**' and when accessing via Kubernetes the url will be '**https://localhost**'.
 
 The application can be accessed using the following urls:
 
@@ -95,6 +109,8 @@ Retrieve Token | https://localhost:9090/token |
 Logout | https://localhost:9090/logout?redirectUrl={your redirect url} |
 Show Claims | https://localhost:9090/whoami |
 Show Decrypted Session Cookie | https://localhost:9090/session |
+Gateway Health | https://localhost:9090/gateway/healthz |
+API Health | https://localhost:9090/api/healthz |
 
 ### User Credentials
 

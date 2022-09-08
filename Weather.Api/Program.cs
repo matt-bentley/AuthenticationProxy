@@ -1,4 +1,6 @@
+using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Weather.Api.Authentication;
 using Weather.Api.Authorization;
 
@@ -27,6 +29,9 @@ builder.Services.AddAuthorization(options =>
                                 .Build());
 });
 
+builder.Services.AddHealthChecks()
+                .AddLiveness("api");
+
 var app = builder.Build();
 
 app.UseSwagger();
@@ -36,5 +41,14 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHealthChecks("/api/liveness", new HealthCheckOptions
+{
+    Predicate = r => r.Name.Contains("self")
+}).AllowAnonymous();
+app.MapHealthChecks("/api/healthz", new HealthCheckOptions()
+{
+    Predicate = _ => true,
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+}).AllowAnonymous();
 
 app.Run();

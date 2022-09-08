@@ -1,0 +1,141 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: api
+  name: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+      - image: yarp/security/api:dev
+        name: api
+        readinessProbe:
+          httpGet:
+            path: /api/liveness
+            port: http
+          periodSeconds: 30
+        livenessProbe:
+          httpGet:
+            path:  /api/liveness
+            port: http
+          periodSeconds: 30
+          failureThreshold: 10
+        startupProbe:
+          httpGet:
+            path:  /api/liveness
+            port: http
+          failureThreshold: 60
+          periodSeconds: 2
+        securityContext:
+          privileged: false
+          allowPrivilegeEscalation: false
+        ports:
+        - name: http
+          containerPort: 8080
+      - image: yarp/security/gateway:dev
+        name: gateway
+        env:
+        - name: IdentityServer__RedirectUri
+          value: "https://localhost/signin-oidc"
+        volumeMounts:
+        - name: "gateway-config"
+          mountPath: "/app/appsettings.Production.json"
+          subPath: "appsettings.Production.json"
+        readinessProbe:
+          httpGet:
+            path: /gateway/liveness
+            port: http
+          periodSeconds: 30
+        livenessProbe:
+          httpGet:
+            path:  /gateway/liveness
+            port: http
+          periodSeconds: 30
+          failureThreshold: 10
+        startupProbe:
+          httpGet:
+            path:  /gateway/liveness
+            port: http
+          failureThreshold: 60
+          periodSeconds: 2
+        securityContext:
+          privileged: false
+          allowPrivilegeEscalation: false
+        ports:
+        - name: http
+          containerPort: 8081
+      restartPolicy: Always
+      volumes:
+        - name: "gateway-config"
+          configMap:
+            name: "api-gateway-config"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  labels:
+    app: api
+spec:
+  type: "ClusterIP"
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8081
+  selector:
+    app: api
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-gateway-config
+data:
+  appsettings.Production.json: |
+    {
+      "ReverseProxy": {
+        "Routes": {
+          "healthz": {
+            "ClusterId": "downstream",
+            "AuthorizationPolicy": "anonymous",
+            "Match": {
+              "Path": "/api/healthz"
+            }
+          },
+          "admin": {
+            "ClusterId": "downstream",
+            "AuthorizationPolicy": "admin",
+            "Match": {
+              "Path": "/api/admin/{**catch-all}"
+            }
+          },
+          "downstream": {
+            "ClusterId": "downstream",
+            "AuthorizationPolicy": "default",
+            "Match": {
+              "Path": "/{**catch-all}"
+            }
+          }
+        },
+        "Clusters": {
+          "downstream": {
+            "Destinations": {
+              "downstream-1": {
+                "Address": "http://localhost:8080/"
+              }
+            }
+          }
+        }
+      },
+      "Administrators": [
+        "admin@dev-28752567-admin.okta.com"
+      ]
+    }

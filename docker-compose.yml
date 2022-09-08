@@ -5,27 +5,16 @@ services:
     build:
       context: .
       dockerfile: Gateway/Dockerfile
-    image: ${DOCKER_REGISTRY}yarp/security/gateway:${TAG:-dev}
-    environment:
-      - "ASPNETCORE_URLS=https://+:9090"
-      - ASPNETCORE_HTTPS_PORT=9090
-      - "ReverseProxy__Clusters__weatherservice__Destinations__weatherservice-1__Address=http://api:8080/"
-      - "ReverseProxy__Clusters__weatherapp__Destinations__weatherapp-1__Address=http://web:8080/"
-    ports:
-      - 9090:9090
+    image: yarp/security/gateway:dev
 
   api:
     build:
       context: .
       dockerfile: Weather.Api/Dockerfile
-    image: ${DOCKER_REGISTRY}yarp/security/api:${TAG:-dev}
-    ports:
-      - 5149:8080
+    image: yarp/security/api:dev
 
   web:
     build:
       context: .
       dockerfile: Weather.Web/Server/Dockerfile
-    image: ${DOCKER_REGISTRY}yarp/security/web:${TAG:-dev}
-    ports:
-      - 5022:8080
+    image: yarp/security/web:dev

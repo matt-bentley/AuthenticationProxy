@@ -17,13 +17,18 @@ Project("{E53339B2-1760-4266-BCC7-CA923CBCF16C}") = "docker-compose", "docker-co
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_SolutionItems", "_SolutionItems", "{32C6F2A6-5BA0-48F8-BC7E-81949C113BDB}"
 	ProjectSection(SolutionItems) = preProject
-		aspnetapp.crt = aspnetapp.crt
+		Gateway\aspnetapp.crt = Gateway\aspnetapp.crt
 		README.md = README.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Weather.Web", "Weather.Web", "{DA8973B7-19B6-4544-BDFE-EFECA8BD48AB}"
 EndProject
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "k8s", "k8s\k8s.shproj", "{B2301745-2A0E-4E45-A8F7-0401B59C91FC}"
+EndProject
 Global
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		k8s\k8s.projitems*{b2301745-2a0e-4e45-a8f7-0401b59c91fc}*SharedItemsImports = 13
+	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
