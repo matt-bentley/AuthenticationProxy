@@ -34,6 +34,8 @@ The claims are serialized into an identity using the ***GatewayAuthenticationHan
 
 The access_token is passed in via the **Authorization** header to downstream requests so that the downstream applications can use it to make additional requests for the user. The access_token is passed downstream regardless of whether Cookies or JWTs are used to authenticate the user.
 
+The following claims are passed through the gateway. If any of these headers are passed in the original request they will be removed by the gateway.
+
 Header Name | Description | Example |
 --- | --- |--- |
 x-forwarded-name | Username | Test User |
@@ -54,7 +56,7 @@ To run in Visual Studio the following projects must be set as startup projects:
 - Weather.Api
 - Weather.Web.Server
 
-This will run a single Gateway instance which can route to either the API or Web application used path based routing.
+This will run a single Gateway instance which can route to either the API or Web application using path based routing.
 
 ### Run in Kubernetes
 
